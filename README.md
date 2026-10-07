@@ -46,6 +46,20 @@ WordPress to confirm the RankMath meta actually landed.
 
 ---
 
+## What it looks like
+
+![Dashboard](screenshots/05-dashboard.png)
+*Measured cost per article against target, spend mix by model tier, and what is waiting on you.*
+
+![Internal links](screenshots/11c-editor-internal-links.png)
+*Every internal link points at a post that already exists on the site, with the match score that chose it.*
+
+More screens in [`screenshots/`](screenshots/): the connection wizard, keyword clusters,
+the plan approval board, the SEO panel, per-stage cost telemetry and the publishing
+calendar.
+
+---
+
 ## What it does
 
 1. **Connect** a WordPress site with an application password. Verified on save,
