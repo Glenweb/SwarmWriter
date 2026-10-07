@@ -1,0 +1,127 @@
+{
+  "name": "Swarm Writer — Publisher & Researcher",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "minutes", "minutesInterval": 15 }
+          ]
+        }
+      },
+      "id": "publisher-schedule",
+      "name": "Every 15 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-220, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.SWARM_WRITER_URL }}/api/cron/publish",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $vars.SWARM_WRITER_CRON_SECRET }}" }
+          ]
+        },
+        "options": {
+          "timeout": 300000,
+          "response": { "response": { "neverError": true, "fullResponse": true } }
+        }
+      },
+      "id": "publisher-call",
+      "name": "Drain publish queue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [20, 0],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "notes": "Idempotent. Each job is claimed with a conditional UPDATE, so an overlapping run cannot publish the same article twice."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "version": 2 },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.data.failed }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "publisher-check",
+      "name": "Any failures?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "content": "=Swarm Writer publish run\n\nPublished: {{ $json.body.data.published }}\nFailed: {{ $json.body.data.failed }}\nClaimed: {{ $json.body.data.claimed }}\n\n{{ JSON.stringify($json.body.data.results, null, 2) }}",
+        "options": {}
+      },
+      "id": "publisher-alert",
+      "name": "Alert on failures",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [500, -80],
+      "notes": "Swap for Slack / email / Telegram. Fires only when a publish job failed after its retries."
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "weeks", "weeksInterval": 1, "triggerAtDay": [1], "triggerAtHour": 6, "triggerAtMinute": 7 }
+          ]
+        }
+      },
+      "id": "researcher-schedule",
+      "name": "Weekly, Monday 06:07",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-220, 260]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.SWARM_WRITER_URL }}/api/cron/research?perSite=50",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $vars.SWARM_WRITER_CRON_SECRET }}" }
+          ]
+        },
+        "options": {
+          "timeout": 300000,
+          "response": { "response": { "neverError": true, "fullResponse": true } }
+        }
+      },
+      "id": "researcher-call",
+      "name": "Refresh keyword metrics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [20, 260],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 10000,
+      "notes": "Refreshes volume, CPC and difficulty for the top keywords on every connected site. Does not bill credits."
+    }
+  ],
+  "connections": {
+    "Every 15 minutes": { "main": [[{ "node": "Drain publish queue", "type": "main", "index": 0 }]] },
+    "Drain publish queue": { "main": [[{ "node": "Any failures?", "type": "main", "index": 0 }]] },
+    "Any failures?": { "main": [[{ "node": "Alert on failures", "type": "main", "index": 0 }], []] },
+    "Weekly, Monday 06:07": { "main": [[{ "node": "Refresh keyword metrics", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "saveDataErrorExecution": "all", "saveDataSuccessExecution": "all" },
+  "pinData": {},
+  "meta": {
+    "instanceId": "gmkmedia.app.n8n.cloud",
+    "description": "Import into gmkmedia.app.n8n.cloud. Set two n8n variables first: SWARM_WRITER_URL (e.g. https://swarmwriter.vercel.app) and SWARM_WRITER_CRON_SECRET (must equal CRON_SECRET in the app's environment)."
+  }
+}
